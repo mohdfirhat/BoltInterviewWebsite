@@ -1,113 +1,240 @@
-import Image from 'next/image';
+'use client';
 
-export default function Home() {
+import { motion } from 'framer-motion';
+import { ArrowRight, CheckCircle, Clock, Target, Users, Zap } from 'lucide-react';
+import Link from 'next/link';
+
+const benefits = [
+  {
+    icon: Target,
+    title: 'Targeted Practice',
+    description: 'Practice for specific job positions with customized interview questions'
+  },
+  {
+    icon: Clock,
+    title: 'Flexible Duration',
+    description: 'Choose from 1, 3, or 5-minute sessions that fit your schedule'
+  },
+  {
+    icon: Zap,
+    title: 'AI-Powered Feedback',
+    description: 'Get instant, personalized feedback to improve your performance'
+  },
+  {
+    icon: Users,
+    title: 'Realistic Experience',
+    description: 'Interactive video interviews that simulate real hiring scenarios'
+  }
+];
+
+const features = [
+  'Practice anytime, anywhere',
+  'Build confidence before real interviews',
+  'Improve communication skills',
+  'Get comfortable with video interviews',
+  'Track your progress over time',
+  'Prepare for various job roles'
+];
+
+export default function OnboardingPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="min-h-screen">
+      {/* Header */}
+      <header className="container mx-auto px-6 py-8">
+        <nav className="flex justify-between items-center">
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="text-2xl font-bold gradient-text"
           >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+            InterviewAI
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <Link href="/form" className="btn-secondary">
+              Start Practice
+            </Link>
+          </motion.div>
+        </nav>
+      </header>
+
+      {/* Hero Section */}
+      <section className="container mx-auto px-6 py-16">
+        <div className="text-center max-w-4xl mx-auto">
+          <motion.h1 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="text-5xl md:text-6xl font-bold mb-6"
+          >
+            Master Your <span className="gradient-text">Interview Skills</span>
+          </motion.h1>
+          
+          <motion.p 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="text-xl text-gray-600 mb-8 leading-relaxed"
+          >
+            Practice with AI-powered interactive interviews. Build confidence, 
+            improve your responses, and land your dream job.
+          </motion.p>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+          >
+            <Link href="/form" className="btn-primary flex items-center gap-2">
+              Start Your Practice <ArrowRight className="w-5 h-5" />
+            </Link>
+            <button className="btn-secondary">
+              Watch Demo
+            </button>
+          </motion.div>
         </div>
-      </div>
+      </section>
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
+      {/* Benefits Section */}
+      <section className="container mx-auto px-6 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
         >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
+          <h2 className="text-4xl font-bold mb-4">Why Choose InterviewAI?</h2>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Our platform combines cutting-edge AI technology with proven interview techniques
           </p>
-        </a>
+        </motion.div>
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {benefits.map((benefit, index) => (
+            <motion.div
+              key={benefit.title}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              viewport={{ once: true }}
+              className="bg-white p-8 rounded-2xl shadow-lg card-hover text-center"
+            >
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <benefit.icon className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold mb-4">{benefit.title}</h3>
+              <p className="text-gray-600 leading-relaxed">{benefit.description}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
+      {/* Features Section */}
+      <section className="bg-white py-20">
+        <div className="container mx-auto px-6">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="text-4xl font-bold mb-6">
+                Everything You Need to <span className="gradient-text">Succeed</span>
+              </h2>
+              <p className="text-xl text-gray-600 mb-8">
+                Our comprehensive platform provides all the tools and practice you need 
+                to excel in your next interview.
+              </p>
+              
+              <div className="space-y-4">
+                {features.map((feature, index) => (
+                  <motion.div
+                    key={feature}
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                    viewport={{ once: true }}
+                    className="flex items-center gap-3"
+                  >
+                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-700 text-lg">{feature}</span>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8 }}
+              viewport={{ once: true }}
+              className="relative"
+            >
+              <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-3xl p-8 text-white">
+                <div className="bg-white/20 rounded-2xl p-6 mb-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-white/30 rounded-full animate-pulse-slow"></div>
+                    <div>
+                      <div className="h-4 bg-white/40 rounded w-32 mb-2"></div>
+                      <div className="h-3 bg-white/30 rounded w-24"></div>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="h-3 bg-white/30 rounded"></div>
+                    <div className="h-3 bg-white/30 rounded w-4/5"></div>
+                    <div className="h-3 bg-white/30 rounded w-3/5"></div>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="inline-flex items-center gap-2 bg-white/20 rounded-full px-4 py-2">
+                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-sm">Live Interview Session</span>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-yellow-400 rounded-full animate-float opacity-20"></div>
+              <div className="absolute -bottom-6 -left-6 w-16 h-16 bg-pink-400 rounded-full animate-float opacity-30" style={{ animationDelay: '2s' }}></div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="container mx-auto px-6 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          viewport={{ once: true }}
+          className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl p-12 text-center text-white"
         >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
+          <h2 className="text-4xl font-bold mb-6">Ready to Ace Your Next Interview?</h2>
+          <p className="text-xl mb-8 opacity-90 max-w-2xl mx-auto">
+            Join thousands of professionals who have improved their interview skills with our AI-powered platform.
           </p>
-        </a>
-      </div>
-    </main>
+          <Link href="/form" className="inline-flex items-center gap-2 bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 hover:shadow-lg hover:scale-105">
+            Start Practicing Now <ArrowRight className="w-5 h-5" />
+          </Link>
+        </motion.div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="container mx-auto px-6 text-center">
+          <div className="text-2xl font-bold gradient-text mb-4">InterviewAI</div>
+          <p className="text-gray-400 mb-6">Empowering professionals to succeed in their career journey</p>
+          <div className="flex justify-center gap-8 text-sm text-gray-400">
+            <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
+            <a href="#" className="hover:text-white transition-colors">Contact</a>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
