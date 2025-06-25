@@ -1,0 +1,162 @@
+{
+  "project": {
+    "name": "InterviewAI MVP",
+    "version": "1.0.0",
+    "phase": "Foundation Setup",
+    "startDate": "2024-12-19",
+    "targetLaunchDate": "2024-02-19",
+    "status": "active"
+  },
+  "technology": {
+    "frontend": {
+      "framework": "Next.js 13",
+      "language": "TypeScript",
+      "styling": "Tailwind CSS",
+      "animations": "Framer Motion",
+      "platform": "bolt.new"
+    },
+    "backend": {
+      "primary": "Supabase",
+      "database": "PostgreSQL",
+      "authentication": "Supabase Auth",
+      "storage": "Supabase Storage",
+      "functions": "Supabase Edge Functions"
+    },
+    "ai_services": {
+      "voice": "ElevenLabs TTS",
+      "video_future": "Tavus AI",
+      "llm": "OpenAI GPT-4 (planned)",
+      "speech_analysis": "Custom implementation"
+    },
+    "deployment": {
+      "platform": "bolt.new",
+      "domain": "TBD",
+      "cdn": "Built-in",
+      "monitoring": "Supabase Analytics"
+    }
+  },
+  "business": {
+    "target_market": [
+      "Technology professionals",
+      "Finance professionals", 
+      "Healthcare professionals",
+      "General job seekers"
+    ],
+    "revenue_model": {
+      "free_tier": "2 interviews/month",
+      "pro_tier": "$29/month - unlimited interviews",
+      "enterprise_tier": "$5K-$50K/year - white-label"
+    },
+    "key_metrics": {
+      "target_users_month_1": 1000,
+      "target_mrr_month_2": 5000,
+      "target_conversion_rate": "15%"
+    }
+  },
+  "team": {
+    "structure": "distributed",
+    "methodology": "agile_scrum",
+    "sprint_duration": "2_weeks",
+    "communication": "async_with_standups"
+  },
+  "architecture": {
+    "pattern": "event_driven_microservices",
+    "scalability": "cloud_native_kubernetes",
+    "security": "zero_trust_rbac",
+    "monitoring": "observability_first"
+  },
+  "current_sprint": {
+    "number": 1,
+    "goal": "Foundation Setup",
+    "start_date": "2024-12-19",
+    "end_date": "2025-01-02",
+    "capacity": "80_hours",
+    "committed_story_points": 40
+  },
+  "dependencies": {
+    "external": [
+      {
+        "service": "Supabase",
+        "status": "pending_setup",
+        "critical": true
+      },
+      {
+        "service": "ElevenLabs",
+        "status": "pending_integration",
+        "critical": true
+      }
+    ],
+    "internal": [
+      {
+        "component": "Authentication",
+        "status": "pending",
+        "blocks": ["User Management", "Interview Sessions"]
+      },
+      {
+        "component": "Database Schema",
+        "status": "pending", 
+        "blocks": ["All Data Operations"]
+      }
+    ]
+  },
+  "risks": {
+    "high": [
+      {
+        "description": "ElevenLabs API reliability",
+        "mitigation": "Implement fallback TTS service",
+        "probability": "medium",
+        "impact": "high"
+      }
+    ],
+    "medium": [
+      {
+        "description": "Supabase scaling limitations",
+        "mitigation": "Monitor usage and plan upgrades",
+        "probability": "low",
+        "impact": "medium"
+      }
+    ]
+  },
+  "success_criteria": {
+    "mvp_launch": {
+      "timeline": "6_weeks",
+      "features": [
+        "Voice AI interview simulation",
+        "User authentication and profiles",
+        "Payment processing",
+        "Basic analytics dashboard"
+      ],
+      "metrics": [
+        "1000+ registered users",
+        "$5K+ MRR",
+        "4.5/5.0 user satisfaction"
+      ]
+    }
+  },
+  "next_actions": [
+    {
+      "task": "Supabase project setup",
+      "priority": "critical",
+      "estimated_hours": 8,
+      "assigned_to": "TBD"
+    },
+    {
+      "task": "Database schema design",
+      "priority": "critical", 
+      "estimated_hours": 12,
+      "assigned_to": "TBD"
+    },
+    {
+      "task": "Authentication implementation",
+      "priority": "high",
+      "estimated_hours": 16,
+      "assigned_to": "TBD"
+    }
+  ],
+  "metadata": {
+    "created": "2024-12-19T14:45:00Z",
+    "last_updated": "2024-12-19T14:45:00Z",
+    "version": "1.0",
+    "format": "structured_json_context"
+  }
+}
