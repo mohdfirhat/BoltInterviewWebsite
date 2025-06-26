@@ -56,6 +56,7 @@ export default function InterviewPage() {
   const name = searchParams.get('name') || 'Candidate';
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const interviewVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -121,7 +122,7 @@ export default function InterviewPage() {
 
   // Initialize media stream when permissions are granted
   useEffect(() => {
-    if (permissionsGranted && showPreInterview) {
+    if (permissionsGranted) {
       initializeMediaStream();
     }
 
@@ -173,12 +174,20 @@ export default function InterviewPage() {
       console.log('Audio tracks:', stream.getAudioTracks());
       console.log('Video tracks:', stream.getVideoTracks());
 
-      if (videoRef.current && interviewState.cameraEnabled) {
-        videoRef.current.srcObject = stream;
-        try {
-          await videoRef.current.play();
-        } catch (playError) {
-          console.error('Error playing video:', playError);
+      // Set up video preview for both pre-interview and interview screens
+      if (interviewState.cameraEnabled && stream.getVideoTracks().length > 0) {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(console.error);
+          };
+        }
+        
+        if (interviewVideoRef.current) {
+          interviewVideoRef.current.srcObject = stream;
+          interviewVideoRef.current.onloadedmetadata = () => {
+            interviewVideoRef.current?.play().catch(console.error);
+          };
         }
       }
 
@@ -223,6 +232,10 @@ export default function InterviewPage() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    
+    if (interviewVideoRef.current) {
+      interviewVideoRef.current.srcObject = null;
+    }
   };
 
   const toggleCamera = async () => {
@@ -234,6 +247,14 @@ export default function InterviewPage() {
       videoTracks.forEach(track => {
         track.enabled = newCameraState;
       });
+      
+      // Update video elements visibility
+      if (videoRef.current) {
+        videoRef.current.style.display = newCameraState ? 'block' : 'none';
+      }
+      if (interviewVideoRef.current) {
+        interviewVideoRef.current.style.display = newCameraState ? 'block' : 'none';
+      }
     }
   };
 
@@ -471,6 +492,7 @@ export default function InterviewPage() {
                       muted
                       playsInline
                       className="w-full h-full object-cover"
+                      style={{ transform: 'scaleX(-1)' }} // Mirror effect for natural preview
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-800 flex items-center justify-center">
@@ -747,11 +769,12 @@ export default function InterviewPage() {
             <div className="flex-1 bg-gray-900 rounded-xl relative overflow-hidden">
               {interviewState.cameraEnabled ? (
                 <video
-                  ref={videoRef}
+                  ref={interviewVideoRef}
                   autoPlay
                   muted
                   playsInline
                   className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }} // Mirror effect for natural preview
                 />
               ) : (
                 <div className="w-full h-full bg-gray-800 flex items-center justify-center">
