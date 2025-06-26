@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Camera, CameraOff, Mic, MicOff, RotateCcw, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 interface InterviewState {
   isActive: boolean;
@@ -13,6 +13,13 @@ interface InterviewState {
   isRecording: boolean;
   cameraEnabled: boolean;
   micEnabled: boolean;
+}
+
+interface MediaDevices {
+  videoDevices: MediaDeviceInfo[];
+  audioDevices: MediaDeviceInfo[];
+  selectedVideoDevice: string;
+  selectedAudioDevice: string;
 }
 
 const sampleQuestions = {
@@ -48,6 +55,10 @@ export default function InterviewPage() {
   const duration = parseInt(searchParams.get('duration') || '3');
   const name = searchParams.get('name') || 'Candidate';
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   const [interviewState, setInterviewState] = useState<InterviewState>({
     isActive: false,
     currentQuestion: 0,
@@ -57,44 +68,166 @@ export default function InterviewPage() {
     micEnabled: true
   });
 
+  const [mediaDevices, setMediaDevices] = useState<MediaDevices>({
+    videoDevices: [],
+    audioDevices: [],
+    selectedVideoDevice: '',
+    selectedAudioDevice: ''
+  });
+
   const [showPreInterview, setShowPreInterview] = useState(true);
-  const [tavusVideoUrl, setTavusVideoUrl] = useState<string>('');
+  const [mediaError, setMediaError] = useState<string>('');
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
 
   const questions = sampleQuestions[position as keyof typeof sampleQuestions] || sampleQuestions.default;
 
+  // Get available media devices
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (interviewState.isActive && interviewState.timeRemaining > 0) {
-      interval = setInterval(() => {
-        setInterviewState(prev => ({
-          ...prev,
-          timeRemaining: prev.timeRemaining - 1
-        }));
-      }, 1000);
-    } else if (interviewState.timeRemaining === 0) {
-      setInterviewState(prev => ({ ...prev, isActive: false }));
+    const getMediaDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        const audioDevices = devices.filter(device => device.kind === 'audioinput');
+        
+        setMediaDevices({
+          videoDevices,
+          audioDevices,
+          selectedVideoDevice: videoDevices[0]?.deviceId || '',
+          selectedAudioDevice: audioDevices[0]?.deviceId || ''
+        });
+      } catch (error) {
+        console.error('Error getting media devices:', error);
+        setMediaError('Unable to access media devices');
+      }
+    };
+
+    getMediaDevices();
+  }, []);
+
+  // Initialize media stream
+  useEffect(() => {
+    if (showPreInterview) {
+      initializeMediaStream();
     }
 
-    return () => clearInterval(interval);
-  }, [interviewState.isActive, interviewState.timeRemaining]);
+    return () => {
+      stopMediaStream();
+    };
+  }, [interviewState.cameraEnabled, interviewState.micEnabled, mediaDevices.selectedVideoDevice, mediaDevices.selectedAudioDevice]);
 
-  const startInterview = () => {
-    setShowPreInterview(false);
-    setInterviewState(prev => ({ ...prev, isActive: true, isRecording: true }));
-    
-    // Simulate Tavus video generation
-    setTimeout(() => {
-      setTavusVideoUrl('https://example-tavus-video-url.com/interview-session');
-    }, 2000);
+  const initializeMediaStream = async () => {
+    try {
+      setIsLoadingMedia(true);
+      setMediaError('');
+
+      // Stop existing stream
+      stopMediaStream();
+
+      const constraints: MediaStreamConstraints = {
+        video: interviewState.cameraEnabled ? {
+          deviceId: mediaDevices.selectedVideoDevice ? { exact: mediaDevices.selectedVideoDevice } : undefined,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        } : false,
+        audio: interviewState.micEnabled ? {
+          deviceId: mediaDevices.selectedAudioDevice ? { exact: mediaDevices.selectedAudioDevice } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } : false
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      if (videoRef.current && interviewState.cameraEnabled) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+
+    } catch (error: any) {
+      console.error('Error accessing media devices:', error);
+      let errorMessage = 'Unable to access camera or microphone';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Camera and microphone access denied. Please allow permissions and refresh the page.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No camera or microphone found. Please connect a device and try again.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Camera or microphone is already in use by another application.';
+      }
+      
+      setMediaError(errorMessage);
+    } finally {
+      setIsLoadingMedia(false);
+    }
   };
 
-  const toggleCamera = () => {
+  const stopMediaStream = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+      });
+      streamRef.current = null;
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const toggleCamera = async () => {
     setInterviewState(prev => ({ ...prev, cameraEnabled: !prev.cameraEnabled }));
   };
 
-  const toggleMic = () => {
+  const toggleMic = async () => {
     setInterviewState(prev => ({ ...prev, micEnabled: !prev.micEnabled }));
+  };
+
+  const startRecording = async () => {
+    if (!streamRef.current) {
+      setMediaError('No media stream available for recording');
+      return;
+    }
+
+    try {
+      const mediaRecorder = new MediaRecorder(streamRef.current, {
+        mimeType: 'video/webm;codecs=vp9,opus'
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          // Handle recorded data here
+          console.log('Recording data available:', event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log('Recording stopped');
+      };
+
+      mediaRecorder.start();
+      setInterviewState(prev => ({ ...prev, isRecording: true }));
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      setMediaError('Unable to start recording');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setInterviewState(prev => ({ ...prev, isRecording: false }));
+    }
+  };
+
+  const startInterview = async () => {
+    setShowPreInterview(false);
+    setInterviewState(prev => ({ ...prev, isActive: true }));
+    await startRecording();
   };
 
   const nextQuestion = () => {
@@ -108,6 +241,25 @@ export default function InterviewPage() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (interviewState.isActive && interviewState.timeRemaining > 0) {
+      interval = setInterval(() => {
+        setInterviewState(prev => ({
+          ...prev,
+          timeRemaining: prev.timeRemaining - 1
+        }));
+      }, 1000);
+    } else if (interviewState.timeRemaining === 0) {
+      setInterviewState(prev => ({ ...prev, isActive: false }));
+      stopRecording();
+    }
+
+    return () => clearInterval(interval);
+  }, [interviewState.isActive, interviewState.timeRemaining]);
 
   if (showPreInterview) {
     return (
@@ -144,14 +296,34 @@ export default function InterviewPage() {
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Camera Preview</h3>
                 <div className="aspect-video bg-gray-900 rounded-xl relative overflow-hidden">
-                  {interviewState.cameraEnabled ? (
-                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                  {isLoadingMedia ? (
+                    <div className="w-full h-full bg-gray-800 flex items-center justify-center">
                       <div className="text-white text-center">
-                        <Camera className="w-12 h-12 mx-auto mb-2" />
-                        <p>Camera Preview</p>
-                        <p className="text-sm opacity-75">Your video will appear here</p>
+                        <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                        <p>Loading camera...</p>
                       </div>
                     </div>
+                  ) : mediaError ? (
+                    <div className="w-full h-full bg-red-900 flex items-center justify-center p-4">
+                      <div className="text-red-100 text-center">
+                        <CameraOff className="w-12 h-12 mx-auto mb-2" />
+                        <p className="text-sm">{mediaError}</p>
+                        <button 
+                          onClick={initializeMediaStream}
+                          className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    </div>
+                  ) : interviewState.cameraEnabled ? (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <div className="w-full h-full bg-gray-800 flex items-center justify-center">
                       <div className="text-gray-400 text-center">
@@ -178,12 +350,51 @@ export default function InterviewPage() {
                     className={`p-3 rounded-full transition-colors ${
                       interviewState.micEnabled 
                         ? 'bg-blue-500 text-white' 
-                        : 'bg-gray-200 text-gray-600'
+                        : 'bg-red-500 text-white'
                     }`}
                   >
                     {interviewState.micEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
                   </button>
                 </div>
+
+                {/* Device Selection */}
+                {(mediaDevices.videoDevices.length > 1 || mediaDevices.audioDevices.length > 1) && (
+                  <div className="space-y-3">
+                    {mediaDevices.videoDevices.length > 1 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Camera</label>
+                        <select
+                          value={mediaDevices.selectedVideoDevice}
+                          onChange={(e) => setMediaDevices(prev => ({ ...prev, selectedVideoDevice: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          {mediaDevices.videoDevices.map((device) => (
+                            <option key={device.deviceId} value={device.deviceId}>
+                              {device.label || `Camera ${device.deviceId.slice(0, 8)}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    
+                    {mediaDevices.audioDevices.length > 1 && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Microphone</label>
+                        <select
+                          value={mediaDevices.selectedAudioDevice}
+                          onChange={(e) => setMediaDevices(prev => ({ ...prev, selectedAudioDevice: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          {mediaDevices.audioDevices.map((device) => (
+                            <option key={device.deviceId} value={device.deviceId}>
+                              {device.label || `Microphone ${device.deviceId.slice(0, 8)}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Interview Details */}
@@ -209,10 +420,21 @@ export default function InterviewPage() {
                 <div className="p-4 bg-blue-50 rounded-xl">
                   <h4 className="font-semibold text-blue-800 mb-2">Tips for Success:</h4>
                   <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• Speak clearly and maintain eye contact</li>
+                    <li>• Speak clearly and maintain eye contact with the camera</li>
                     <li>• Take a moment to think before answering</li>
                     <li>• Use specific examples in your responses</li>
                     <li>• Stay calm and confident</li>
+                    <li>• Ensure good lighting and minimal background noise</li>
+                  </ul>
+                </div>
+
+                <div className="p-4 bg-yellow-50 rounded-xl">
+                  <h4 className="font-semibold text-yellow-800 mb-2">Technical Requirements:</h4>
+                  <ul className="text-sm text-yellow-700 space-y-1">
+                    <li>• Camera and microphone permissions required</li>
+                    <li>• Stable internet connection recommended</li>
+                    <li>• Chrome, Firefox, or Safari browser</li>
+                    <li>• Close other applications for best performance</li>
                   </ul>
                 </div>
               </div>
@@ -221,9 +443,14 @@ export default function InterviewPage() {
             <div className="text-center">
               <button
                 onClick={startInterview}
-                className="btn-primary text-xl px-12 py-4"
+                disabled={!!mediaError || isLoadingMedia}
+                className={`text-xl px-12 py-4 rounded-xl font-semibold transition-all duration-300 ${
+                  mediaError || isLoadingMedia
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg hover:scale-105'
+                }`}
               >
-                Start Interview
+                {isLoadingMedia ? 'Setting up...' : 'Start Interview'}
               </button>
             </div>
           </motion.div>
@@ -274,24 +501,15 @@ export default function InterviewPage() {
             </div>
             
             <div className="flex-1 bg-gradient-to-br from-purple-500 to-blue-500 rounded-xl relative overflow-hidden">
-              {tavusVideoUrl ? (
-                <div className="w-full h-full flex items-center justify-center text-white">
-                  <div className="text-center">
-                    <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <div className="w-16 h-16 bg-white/30 rounded-full animate-pulse"></div>
-                    </div>
-                    <p className="text-lg font-medium">AI Interviewer Active</p>
-                    <p className="text-sm opacity-75">Tavus Video Session</p>
+              <div className="w-full h-full flex items-center justify-center text-white">
+                <div className="text-center">
+                  <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 bg-white/30 rounded-full animate-pulse"></div>
                   </div>
+                  <p className="text-lg font-medium">AI Interviewer Active</p>
+                  <p className="text-sm opacity-75">Listening to your response</p>
                 </div>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-white">
-                  <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p>Generating AI Interviewer...</p>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
             {/* Current Question */}
@@ -346,13 +564,13 @@ export default function InterviewPage() {
 
             <div className="flex-1 bg-gray-900 rounded-xl relative overflow-hidden">
               {interviewState.cameraEnabled ? (
-                <div className="w-full h-full bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center">
-                  <div className="text-white text-center">
-                    <Camera className="w-16 h-16 mx-auto mb-4" />
-                    <p className="text-lg">You're on camera</p>
-                    <p className="text-sm opacity-75">Speak clearly and confidently</p>
-                  </div>
-                </div>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <div className="w-full h-full bg-gray-800 flex items-center justify-center">
                   <div className="text-gray-400 text-center">
