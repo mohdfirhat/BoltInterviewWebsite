@@ -87,6 +87,9 @@ export default function InterviewPage() {
   useEffect(() => {
     const initializeDevices = async () => {
       try {
+        setIsLoadingMedia(true);
+        setMediaError('');
+        
         // First, request permissions to get device labels
         const tempStream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
@@ -114,33 +117,52 @@ export default function InterviewPage() {
         console.error('Error getting media devices:', error);
         setMediaError('Please allow camera and microphone access to continue');
         setPermissionsGranted(false);
+      } finally {
+        setIsLoadingMedia(false);
       }
     };
 
     initializeDevices();
   }, []);
 
-  // Initialize media stream when permissions are granted
+  // Initialize media stream when permissions are granted and devices are available
   useEffect(() => {
-    if (permissionsGranted) {
+    if (permissionsGranted && mediaDevices.selectedVideoDevice && mediaDevices.selectedAudioDevice) {
       initializeMediaStream();
     }
 
     return () => {
       stopMediaStream();
     };
-  }, [permissionsGranted, interviewState.cameraEnabled, interviewState.micEnabled, mediaDevices.selectedVideoDevice, mediaDevices.selectedAudioDevice]);
+  }, [permissionsGranted, mediaDevices.selectedVideoDevice, mediaDevices.selectedAudioDevice]);
+
+  // Handle camera/mic toggle effects
+  useEffect(() => {
+    if (streamRef.current) {
+      // Update existing stream tracks
+      const videoTracks = streamRef.current.getVideoTracks();
+      const audioTracks = streamRef.current.getAudioTracks();
+      
+      videoTracks.forEach(track => {
+        track.enabled = interviewState.cameraEnabled;
+      });
+      
+      audioTracks.forEach(track => {
+        track.enabled = interviewState.micEnabled;
+      });
+
+      // Update video element visibility
+      if (videoRef.current) {
+        videoRef.current.style.display = interviewState.cameraEnabled ? 'block' : 'none';
+      }
+      if (interviewVideoRef.current) {
+        interviewVideoRef.current.style.display = interviewState.cameraEnabled ? 'block' : 'none';
+      }
+    }
+  }, [interviewState.cameraEnabled, interviewState.micEnabled]);
 
   const initializeMediaStream = async () => {
     if (!permissionsGranted) return;
-
-    // Check if both camera and microphone are disabled
-    if (!interviewState.cameraEnabled && !interviewState.micEnabled) {
-      // Stop existing stream if any
-      stopMediaStream();
-      setMediaError('Please enable at least one of camera or microphone to continue');
-      return;
-    }
 
     try {
       setIsLoadingMedia(true);
@@ -150,19 +172,19 @@ export default function InterviewPage() {
       stopMediaStream();
 
       const constraints: MediaStreamConstraints = {
-        video: interviewState.cameraEnabled ? {
+        video: {
           deviceId: mediaDevices.selectedVideoDevice ? { exact: mediaDevices.selectedVideoDevice } : undefined,
           width: { ideal: 1280 },
           height: { ideal: 720 },
           frameRate: { ideal: 30 }
-        } : false,
-        audio: interviewState.micEnabled ? {
+        },
+        audio: {
           deviceId: mediaDevices.selectedAudioDevice ? { exact: mediaDevices.selectedAudioDevice } : undefined,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
           sampleRate: 44100
-        } : false
+        }
       };
 
       console.log('Requesting media with constraints:', constraints);
@@ -175,7 +197,7 @@ export default function InterviewPage() {
       console.log('Video tracks:', stream.getVideoTracks());
 
       // Set up video preview for both pre-interview and interview screens
-      if (interviewState.cameraEnabled && stream.getVideoTracks().length > 0) {
+      if (stream.getVideoTracks().length > 0) {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
@@ -191,8 +213,20 @@ export default function InterviewPage() {
         }
       }
 
+      // Apply current camera/mic settings to the stream
+      const videoTracks = stream.getVideoTracks();
+      const audioTracks = stream.getAudioTracks();
+      
+      videoTracks.forEach(track => {
+        track.enabled = interviewState.cameraEnabled;
+      });
+      
+      audioTracks.forEach(track => {
+        track.enabled = interviewState.micEnabled;
+      });
+
       // Test audio levels
-      if (interviewState.micEnabled && stream.getAudioTracks().length > 0) {
+      if (stream.getAudioTracks().length > 0) {
         const audioTrack = stream.getAudioTracks()[0];
         console.log('Audio track settings:', audioTrack.getSettings());
         console.log('Audio track constraints:', audioTrack.getConstraints());
@@ -238,37 +272,12 @@ export default function InterviewPage() {
     }
   };
 
-  const toggleCamera = async () => {
-    const newCameraState = !interviewState.cameraEnabled;
-    setInterviewState(prev => ({ ...prev, cameraEnabled: newCameraState }));
-    
-    if (streamRef.current) {
-      const videoTracks = streamRef.current.getVideoTracks();
-      videoTracks.forEach(track => {
-        track.enabled = newCameraState;
-      });
-      
-      // Update video elements visibility
-      if (videoRef.current) {
-        videoRef.current.style.display = newCameraState ? 'block' : 'none';
-      }
-      if (interviewVideoRef.current) {
-        interviewVideoRef.current.style.display = newCameraState ? 'block' : 'none';
-      }
-    }
+  const toggleCamera = () => {
+    setInterviewState(prev => ({ ...prev, cameraEnabled: !prev.cameraEnabled }));
   };
 
-  const toggleMic = async () => {
-    const newMicState = !interviewState.micEnabled;
-    setInterviewState(prev => ({ ...prev, micEnabled: newMicState }));
-    
-    if (streamRef.current) {
-      const audioTracks = streamRef.current.getAudioTracks();
-      audioTracks.forEach(track => {
-        track.enabled = newMicState;
-        console.log(`${newMicState ? 'Enabled' : 'Disabled'} audio track:`, track.label);
-      });
-    }
+  const toggleMic = () => {
+    setInterviewState(prev => ({ ...prev, micEnabled: !prev.micEnabled }));
   };
 
   const requestPermissions = async () => {
