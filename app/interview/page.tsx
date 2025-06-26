@@ -492,20 +492,27 @@ export default function InterviewPage() {
     
     return (
       <div className="flex items-center gap-1">
-        {Array.from({ length: bars }, (_, i) => (
-          <div
-            key={i}
-            className={`w-1 h-4 rounded-full transition-all duration-100 ${
-              enabled && i < activeBars
-                ? i < bars * 0.6
-                  ? 'bg-green-500'
-                  : i < bars * 0.8
-                  ? 'bg-yellow-500'
-                  : 'bg-red-500'
-                : 'bg-gray-300'
-            }`}
-          />
-        ))}
+        {Array.from({ length: bars }, (_, i) => {
+          const isActive = enabled && i < activeBars;
+          let barColor = 'bg-gray-300';
+          
+          if (isActive) {
+            if (level < 20) {
+              barColor = 'bg-yellow-500';
+            } else if (level <= 80) {
+              barColor = 'bg-green-500';
+            } else {
+              barColor = 'bg-red-500';
+            }
+          }
+          
+          return (
+            <div
+              key={i}
+              className={`w-1 h-4 rounded-full transition-all duration-100 ${barColor}`}
+            />
+          );
+        })}
       </div>
     );
   };
