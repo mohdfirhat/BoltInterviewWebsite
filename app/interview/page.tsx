@@ -133,6 +133,14 @@ export default function InterviewPage() {
   const initializeMediaStream = async () => {
     if (!permissionsGranted) return;
 
+    // Check if both camera and microphone are disabled
+    if (!interviewState.cameraEnabled && !interviewState.micEnabled) {
+      // Stop existing stream if any
+      stopMediaStream();
+      setMediaError('Please enable at least one of camera or microphone to continue');
+      return;
+    }
+
     try {
       setIsLoadingMedia(true);
       setMediaError('');
