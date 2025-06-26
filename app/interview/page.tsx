@@ -78,13 +78,24 @@ export default function InterviewPage() {
   const [showPreInterview, setShowPreInterview] = useState(true);
   const [mediaError, setMediaError] = useState<string>('');
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
 
   const questions = sampleQuestions[position as keyof typeof sampleQuestions] || sampleQuestions.default;
 
-  // Get available media devices
+  // Check permissions and get available media devices
   useEffect(() => {
-    const getMediaDevices = async () => {
+    const initializeDevices = async () => {
       try {
+        // First, request permissions to get device labels
+        const tempStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+        
+        // Stop the temporary stream immediately
+        tempStream.getTracks().forEach(track => track.stop());
+        
+        // Now enumerate devices with proper labels
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
         const audioDevices = devices.filter(device => device.kind === 'audioinput');
@@ -95,27 +106,33 @@ export default function InterviewPage() {
           selectedVideoDevice: videoDevices[0]?.deviceId || '',
           selectedAudioDevice: audioDevices[0]?.deviceId || ''
         });
+        
+        setPermissionsGranted(true);
+        
       } catch (error) {
         console.error('Error getting media devices:', error);
-        setMediaError('Unable to access media devices');
+        setMediaError('Please allow camera and microphone access to continue');
+        setPermissionsGranted(false);
       }
     };
 
-    getMediaDevices();
+    initializeDevices();
   }, []);
 
-  // Initialize media stream
+  // Initialize media stream when permissions are granted
   useEffect(() => {
-    if (showPreInterview) {
+    if (permissionsGranted && showPreInterview) {
       initializeMediaStream();
     }
 
     return () => {
       stopMediaStream();
     };
-  }, [interviewState.cameraEnabled, interviewState.micEnabled, mediaDevices.selectedVideoDevice, mediaDevices.selectedAudioDevice]);
+  }, [permissionsGranted, interviewState.cameraEnabled, interviewState.micEnabled, mediaDevices.selectedVideoDevice, mediaDevices.selectedAudioDevice]);
 
   const initializeMediaStream = async () => {
+    if (!permissionsGranted) return;
+
     try {
       setIsLoadingMedia(true);
       setMediaError('');
@@ -134,16 +151,34 @@ export default function InterviewPage() {
           deviceId: mediaDevices.selectedAudioDevice ? { exact: mediaDevices.selectedAudioDevice } : undefined,
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          sampleRate: 44100
         } : false
       };
+
+      console.log('Requesting media with constraints:', constraints);
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
 
+      console.log('Media stream obtained:', stream);
+      console.log('Audio tracks:', stream.getAudioTracks());
+      console.log('Video tracks:', stream.getVideoTracks());
+
       if (videoRef.current && interviewState.cameraEnabled) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.error('Error playing video:', playError);
+        }
+      }
+
+      // Test audio levels
+      if (interviewState.micEnabled && stream.getAudioTracks().length > 0) {
+        const audioTrack = stream.getAudioTracks()[0];
+        console.log('Audio track settings:', audioTrack.getSettings());
+        console.log('Audio track constraints:', audioTrack.getConstraints());
       }
 
     } catch (error: any) {
@@ -156,6 +191,10 @@ export default function InterviewPage() {
         errorMessage = 'No camera or microphone found. Please connect a device and try again.';
       } else if (error.name === 'NotReadableError') {
         errorMessage = 'Camera or microphone is already in use by another application.';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Selected device does not support the required settings. Try a different device.';
+      } else if (error.name === 'AbortError') {
+        errorMessage = 'Media access was aborted. Please try again.';
       }
       
       setMediaError(errorMessage);
@@ -167,6 +206,7 @@ export default function InterviewPage() {
   const stopMediaStream = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => {
+        console.log(`Stopping ${track.kind} track:`, track.label);
         track.stop();
       });
       streamRef.current = null;
@@ -178,11 +218,63 @@ export default function InterviewPage() {
   };
 
   const toggleCamera = async () => {
-    setInterviewState(prev => ({ ...prev, cameraEnabled: !prev.cameraEnabled }));
+    const newCameraState = !interviewState.cameraEnabled;
+    setInterviewState(prev => ({ ...prev, cameraEnabled: newCameraState }));
+    
+    if (streamRef.current) {
+      const videoTracks = streamRef.current.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = newCameraState;
+      });
+    }
   };
 
   const toggleMic = async () => {
-    setInterviewState(prev => ({ ...prev, micEnabled: !prev.micEnabled }));
+    const newMicState = !interviewState.micEnabled;
+    setInterviewState(prev => ({ ...prev, micEnabled: newMicState }));
+    
+    if (streamRef.current) {
+      const audioTracks = streamRef.current.getAudioTracks();
+      audioTracks.forEach(track => {
+        track.enabled = newMicState;
+        console.log(`${newMicState ? 'Enabled' : 'Disabled'} audio track:`, track.label);
+      });
+    }
+  };
+
+  const requestPermissions = async () => {
+    try {
+      setIsLoadingMedia(true);
+      setMediaError('');
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+      
+      // Stop the stream immediately, we just needed permissions
+      stream.getTracks().forEach(track => track.stop());
+      
+      // Re-enumerate devices now that we have permissions
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      const audioDevices = devices.filter(device => device.kind === 'audioinput');
+      
+      setMediaDevices({
+        videoDevices,
+        audioDevices,
+        selectedVideoDevice: videoDevices[0]?.deviceId || '',
+        selectedAudioDevice: audioDevices[0]?.deviceId || ''
+      });
+      
+      setPermissionsGranted(true);
+      
+    } catch (error) {
+      console.error('Permission request failed:', error);
+      setMediaError('Permissions denied. Please allow camera and microphone access.');
+    } finally {
+      setIsLoadingMedia(false);
+    }
   };
 
   const startRecording = async () => {
@@ -192,16 +284,36 @@ export default function InterviewPage() {
     }
 
     try {
-      const mediaRecorder = new MediaRecorder(streamRef.current, {
-        mimeType: 'video/webm;codecs=vp9,opus'
+      // Check if we have both audio and video tracks
+      const audioTracks = streamRef.current.getAudioTracks();
+      const videoTracks = streamRef.current.getVideoTracks();
+      
+      console.log('Starting recording with tracks:', {
+        audio: audioTracks.length,
+        video: videoTracks.length
       });
+
+      let mimeType = 'video/webm;codecs=vp9,opus';
+      
+      // Fallback mime types if the preferred one isn't supported
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = '';
+          }
+        }
+      }
+
+      const options = mimeType ? { mimeType } : {};
+      const mediaRecorder = new MediaRecorder(streamRef.current, options);
       
       mediaRecorderRef.current = mediaRecorder;
       
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          // Handle recorded data here
-          console.log('Recording data available:', event.data);
+          console.log('Recording data available:', event.data.size, 'bytes');
         }
       };
 
@@ -209,11 +321,19 @@ export default function InterviewPage() {
         console.log('Recording stopped');
       };
 
-      mediaRecorder.start();
+      mediaRecorder.onerror = (event) => {
+        console.error('Recording error:', event);
+        setMediaError('Recording failed. Please try again.');
+      };
+
+      mediaRecorder.start(1000); // Record in 1-second chunks
       setInterviewState(prev => ({ ...prev, isRecording: true }));
+      
+      console.log('Recording started with mime type:', mimeType);
+      
     } catch (error) {
       console.error('Error starting recording:', error);
-      setMediaError('Unable to start recording');
+      setMediaError('Unable to start recording. Please check your browser compatibility.');
     }
   };
 
@@ -225,6 +345,11 @@ export default function InterviewPage() {
   };
 
   const startInterview = async () => {
+    if (!streamRef.current) {
+      setMediaError('Please ensure camera and microphone are working before starting');
+      return;
+    }
+
     setShowPreInterview(false);
     setInterviewState(prev => ({ ...prev, isActive: true }));
     await startRecording();
@@ -294,9 +419,24 @@ export default function InterviewPage() {
             <div className="grid md:grid-cols-2 gap-8 mb-8">
               {/* Camera Preview */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Camera Preview</h3>
+                <h3 className="text-lg font-semibold">Camera & Microphone Setup</h3>
                 <div className="aspect-video bg-gray-900 rounded-xl relative overflow-hidden">
-                  {isLoadingMedia ? (
+                  {!permissionsGranted ? (
+                    <div className="w-full h-full bg-blue-900 flex items-center justify-center p-4">
+                      <div className="text-blue-100 text-center">
+                        <Camera className="w-12 h-12 mx-auto mb-4" />
+                        <p className="text-lg font-medium mb-2">Camera & Microphone Access Required</p>
+                        <p className="text-sm mb-4">Please allow access to your camera and microphone to continue</p>
+                        <button 
+                          onClick={requestPermissions}
+                          disabled={isLoadingMedia}
+                          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {isLoadingMedia ? 'Requesting Access...' : 'Allow Access'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : isLoadingMedia ? (
                     <div className="w-full h-full bg-gray-800 flex items-center justify-center">
                       <div className="text-white text-center">
                         <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
@@ -307,10 +447,10 @@ export default function InterviewPage() {
                     <div className="w-full h-full bg-red-900 flex items-center justify-center p-4">
                       <div className="text-red-100 text-center">
                         <CameraOff className="w-12 h-12 mx-auto mb-2" />
-                        <p className="text-sm">{mediaError}</p>
+                        <p className="text-sm mb-4">{mediaError}</p>
                         <button 
                           onClick={initializeMediaStream}
-                          className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
                         >
                           Retry
                         </button>
@@ -337,7 +477,8 @@ export default function InterviewPage() {
                 <div className="flex gap-4 justify-center">
                   <button
                     onClick={toggleCamera}
-                    className={`p-3 rounded-full transition-colors ${
+                    disabled={!permissionsGranted}
+                    className={`p-3 rounded-full transition-colors disabled:opacity-50 ${
                       interviewState.cameraEnabled 
                         ? 'bg-blue-500 text-white' 
                         : 'bg-gray-200 text-gray-600'
@@ -347,9 +488,10 @@ export default function InterviewPage() {
                   </button>
                   <button
                     onClick={toggleMic}
-                    className={`p-3 rounded-full transition-colors ${
+                    disabled={!permissionsGranted}
+                    className={`p-3 rounded-full transition-colors disabled:opacity-50 ${
                       interviewState.micEnabled 
-                        ? 'bg-blue-500 text-white' 
+                        ? 'bg-green-500 text-white' 
                         : 'bg-red-500 text-white'
                     }`}
                   >
@@ -357,8 +499,21 @@ export default function InterviewPage() {
                   </button>
                 </div>
 
+                {/* Audio Level Indicator */}
+                {permissionsGranted && interviewState.micEnabled && streamRef.current && (
+                  <div className="bg-gray-100 p-3 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Mic className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium">Microphone Active</span>
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      Speak to test your microphone
+                    </div>
+                  </div>
+                )}
+
                 {/* Device Selection */}
-                {(mediaDevices.videoDevices.length > 1 || mediaDevices.audioDevices.length > 1) && (
+                {permissionsGranted && (mediaDevices.videoDevices.length > 1 || mediaDevices.audioDevices.length > 1) && (
                   <div className="space-y-3">
                     {mediaDevices.videoDevices.length > 1 && (
                       <div>
@@ -437,20 +592,39 @@ export default function InterviewPage() {
                     <li>• Close other applications for best performance</li>
                   </ul>
                 </div>
+
+                {/* System Check */}
+                <div className="p-4 bg-green-50 rounded-xl">
+                  <h4 className="font-semibold text-green-800 mb-2">System Check:</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${permissionsGranted ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <span className={permissionsGranted ? 'text-green-700' : 'text-red-700'}>
+                        Camera & Microphone Access
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${streamRef.current ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                      <span className={streamRef.current ? 'text-green-700' : 'text-yellow-700'}>
+                        Media Stream Active
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div className="text-center">
               <button
                 onClick={startInterview}
-                disabled={!!mediaError || isLoadingMedia}
+                disabled={!permissionsGranted || !!mediaError || isLoadingMedia || !streamRef.current}
                 className={`text-xl px-12 py-4 rounded-xl font-semibold transition-all duration-300 ${
-                  mediaError || isLoadingMedia
+                  !permissionsGranted || mediaError || isLoadingMedia || !streamRef.current
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg hover:scale-105'
                 }`}
               >
-                {isLoadingMedia ? 'Setting up...' : 'Start Interview'}
+                {isLoadingMedia ? 'Setting up...' : !permissionsGranted ? 'Allow Access First' : 'Start Interview'}
               </button>
             </div>
           </motion.div>
@@ -553,7 +727,7 @@ export default function InterviewPage() {
                   onClick={toggleMic}
                   className={`p-2 rounded-lg transition-colors ${
                     interviewState.micEnabled 
-                      ? 'bg-blue-500 text-white' 
+                      ? 'bg-green-500 text-white' 
                       : 'bg-red-500 text-white'
                   }`}
                 >
