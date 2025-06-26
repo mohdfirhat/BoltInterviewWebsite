@@ -59,6 +59,9 @@ export default function InterviewPage() {
   const interviewVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   const [interviewState, setInterviewState] = useState<InterviewState>({
     isActive: false,
@@ -80,8 +83,78 @@ export default function InterviewPage() {
   const [mediaError, setMediaError] = useState<string>('');
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
   const [permissionsGranted, setPermissionsGranted] = useState(false);
+  const [audioLevel, setAudioLevel] = useState<number>(0);
 
   const questions = sampleQuestions[position as keyof typeof sampleQuestions] || sampleQuestions.default;
+
+  // Audio level monitoring
+  const setupAudioAnalyser = (stream: MediaStream) => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      
+      microphone.connect(analyser);
+      
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+      
+      // Start monitoring audio levels
+      monitorAudioLevel();
+    } catch (error) {
+      console.error('Error setting up audio analyser:', error);
+    }
+  };
+
+  const monitorAudioLevel = () => {
+    if (!analyserRef.current) return;
+
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    
+    const updateLevel = () => {
+      if (!analyserRef.current || !interviewState.micEnabled) {
+        setAudioLevel(0);
+        animationFrameRef.current = requestAnimationFrame(updateLevel);
+        return;
+      }
+
+      analyserRef.current.getByteFrequencyData(dataArray);
+      
+      // Calculate average volume
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const average = sum / dataArray.length;
+      
+      // Normalize to 0-100 range
+      const normalizedLevel = Math.min(100, (average / 128) * 100);
+      setAudioLevel(normalizedLevel);
+      
+      animationFrameRef.current = requestAnimationFrame(updateLevel);
+    };
+
+    updateLevel();
+  };
+
+  // Cleanup audio monitoring
+  const cleanupAudioAnalyser = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    
+    analyserRef.current = null;
+    setAudioLevel(0);
+  };
 
   // Check permissions and get available media devices
   useEffect(() => {
@@ -133,6 +206,7 @@ export default function InterviewPage() {
 
     return () => {
       stopMediaStream();
+      cleanupAudioAnalyser();
     };
   }, [permissionsGranted, mediaDevices.selectedVideoDevice, mediaDevices.selectedAudioDevice]);
 
@@ -170,6 +244,7 @@ export default function InterviewPage() {
 
       // Stop existing stream
       stopMediaStream();
+      cleanupAudioAnalyser();
 
       const constraints: MediaStreamConstraints = {
         video: {
@@ -211,6 +286,11 @@ export default function InterviewPage() {
             interviewVideoRef.current?.play().catch(console.error);
           };
         }
+      }
+
+      // Set up audio level monitoring
+      if (stream.getAudioTracks().length > 0) {
+        setupAudioAnalyser(stream);
       }
 
       // Apply current camera/mic settings to the stream
@@ -405,6 +485,31 @@ export default function InterviewPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Audio Level Indicator Component
+  const AudioLevelIndicator = ({ level, enabled }: { level: number; enabled: boolean }) => {
+    const bars = 10;
+    const activeBars = Math.ceil((level / 100) * bars);
+    
+    return (
+      <div className="flex items-center gap-1">
+        {Array.from({ length: bars }, (_, i) => (
+          <div
+            key={i}
+            className={`w-1 h-4 rounded-full transition-all duration-100 ${
+              enabled && i < activeBars
+                ? i < bars * 0.6
+                  ? 'bg-green-500'
+                  : i < bars * 0.8
+                  ? 'bg-yellow-500'
+                  : 'bg-red-500'
+                : 'bg-gray-300'
+            }`}
+          />
+        ))}
+      </div>
+    );
+  };
+
   // Timer effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -539,14 +644,29 @@ export default function InterviewPage() {
                 </div>
 
                 {/* Audio Level Indicator */}
-                {permissionsGranted && interviewState.micEnabled && streamRef.current && (
-                  <div className="bg-gray-100 p-3 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Mic className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-medium">Microphone Active</span>
+                {permissionsGranted && streamRef.current && (
+                  <div className="bg-gray-100 p-4 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Mic className={`w-5 h-5 ${interviewState.micEnabled ? 'text-green-600' : 'text-gray-400'}`} />
+                      <span className="text-sm font-medium">
+                        {interviewState.micEnabled ? 'Microphone Active' : 'Microphone Disabled'}
+                      </span>
                     </div>
-                    <div className="text-xs text-gray-600">
-                      Speak to test your microphone
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600">Audio Level</span>
+                        <span className="text-xs text-gray-600">{Math.round(audioLevel)}%</span>
+                      </div>
+                      <AudioLevelIndicator level={audioLevel} enabled={interviewState.micEnabled} />
+                      <div className="text-xs text-gray-600">
+                        {interviewState.micEnabled 
+                          ? audioLevel > 5 
+                            ? '✓ Microphone is working - speak to see levels'
+                            : 'Speak to test your microphone'
+                          : 'Enable microphone to test audio levels'
+                        }
+                      </div>
                     </div>
                   </div>
                 )}
@@ -646,6 +766,12 @@ export default function InterviewPage() {
                       <div className={`w-3 h-3 rounded-full ${streamRef.current ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
                       <span className={streamRef.current ? 'text-green-700' : 'text-yellow-700'}>
                         Media Stream Active
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${audioLevel > 5 ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                      <span className={audioLevel > 5 ? 'text-green-700' : 'text-yellow-700'}>
+                        Microphone Audio Detected
                       </span>
                     </div>
                   </div>
@@ -795,8 +921,20 @@ export default function InterviewPage() {
               )}
             </div>
 
+            {/* Audio Level Indicator in Interview */}
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Mic className={`w-4 h-4 ${interviewState.micEnabled ? 'text-green-600' : 'text-gray-400'}`} />
+                  <span className="text-sm font-medium">Audio Level</span>
+                </div>
+                <span className="text-xs text-gray-600">{Math.round(audioLevel)}%</span>
+              </div>
+              <AudioLevelIndicator level={audioLevel} enabled={interviewState.micEnabled} />
+            </div>
+
             {/* Response Timer & Controls */}
-            <div className="mt-6 space-y-4">
+            <div className="mt-4 space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Response Time</span>
                 <span className="text-lg font-mono">0:45</span>
